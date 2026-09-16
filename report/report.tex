@@ -8,6 +8,8 @@
 \usepackage{listings}
 \usepackage{amsmath}
 \usepackage{float}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta, positioning, calc}
 
 \definecolor{codegray}{gray}{0.95}
 \lstset{
@@ -32,9 +34,8 @@
 
 \begin{minipage}[t]{0.30\textwidth}
 \centering
-\textbf{Student} \\[0.2em]
-Mauricio Gabriel Ram\'{i}rez Rubio \\
-Data Engineering --- 8th Term \\
+\textbf{Mauricio Gabriel Ram\'{i}rez Rubio} \\[0.2em]
+Data Engineering --- 9th \\
 Universidad Polit\'{e}cnica de Yucat\'{a}n \\
 Km.\ 4.5 Carretera M\'{e}rida --- Tetiz \\
 Tablaje Catastral 4448. CP 97357 \\
@@ -44,9 +45,8 @@ Email: 2309192@upy.edu.mx
 \hfill
 \begin{minipage}[t]{0.30\textwidth}
 \centering
-\textbf{Student} \\[0.2em]
-Cesar Arturo Balam Euan \\
-Data Engineering --- 8th Term \\
+\textbf{Cesar Arturo Balam Euan } \\[0.2em]
+Data Engineering --- 9th \\
 Universidad Polit\'{e}cnica de Yucat\'{a}n \\
 Km.\ 4.5 Carretera M\'{e}rida --- Tetiz \\
 Tablaje Catastral 4448. CP 97357 \\
@@ -56,9 +56,8 @@ Email: 2309017@upy.edu.mx
 \hfill
 \begin{minipage}[t]{0.30\textwidth}
 \centering
-\textbf{Student} \\[0.2em]
-Rodrigo Garc\'{i}a Mart\'{i}nez \\
-Data Engineering --- 8th Term \\
+\textbf{Rodrigo Garc\'{i}a Mart\'{i}nez} \\[0.2em]
+Data Engineering --- 9th \\
 Universidad Polit\'{e}cnica de Yucat\'{a}n \\
 Km.\ 4.5 Carretera M\'{e}rida --- Tetiz \\
 Tablaje Catastral 4448. CP 97357 \\
@@ -70,9 +69,8 @@ Email: 2309091@upy.edu.mx
 
 \begin{minipage}[t]{0.30\textwidth}
 \centering
-\textbf{Student} \\[0.2em]
-Diego De Gante P\'{e}rez \\
-Data Engineering --- 8th Term \\
+\textbf{Diego De Gante P\'{e}rez } \\[0.2em]
+Data Engineering --- 9th \\
 Universidad Polit\'{e}cnica de Yucat\'{a}n \\
 Km.\ 4.5 Carretera M\'{e}rida --- Tetiz \\
 Tablaje Catastral 4448. CP 97357 \\
@@ -82,9 +80,8 @@ Email: 2309067@upy.edu.mx
 \hfill
 \begin{minipage}[t]{0.30\textwidth}
 \centering
-\textbf{Student} \\[0.2em]
-Roselyn Guadalupe Polanco Gonz\'{a}lez \\
-Data Engineering --- 8th Term \\
+\textbf{Roselyn Guadalupe Polanco Gonz\'{a}lez} \\[0.2em]
+Data Engineering --- 9th \\
 Universidad Polit\'{e}cnica de Yucat\'{a}n \\
 Km.\ 4.5 Carretera M\'{e}rida --- Tetiz \\
 Tablaje Catastral 4448. CP 97357 \\
@@ -94,8 +91,7 @@ Email: 2309184@upy.edu.mx
 \hfill
 \begin{minipage}[t]{0.30\textwidth}
 \centering
-\textbf{Professor} \\[0.2em]
-G\'{o}mez Dexter \\
+\textbf{G\'{o}mez Dexter} \\[0.2em]
 Trends in Data Science \\
 Universidad Polit\'{e}cnica de Yucat\'{a}n \\
 Km.\ 4.5 Carretera M\'{e}rida --- Tetiz \\
@@ -144,13 +140,96 @@ the time of purchase, rather than being derived from the live
 \texttt{orders}.
 
 \subsection*{ER Diagram}
+
 \begin{figure}[H]
-    \centering
-    \fbox{\parbox{0.9\textwidth}{\centering \vspace{6cm}
-    [ INSERT ER DIAGRAM SCREENSHOT HERE --- e.g. from dbdiagram.io,
-    pgAdmin's ER tool, or a draw.io export of the 6-table schema ]
-    \vspace{6cm}}}
-    \caption{Entity-Relationship diagram of the e-commerce schema (3NF).}
+\centering
+\begin{tikzpicture}[
+    entity/.style={
+        rectangle, draw=black, thick, rounded corners=2pt,
+        align=left, font=\footnotesize, inner sep=6pt,
+        text width=3.6cm
+    },
+    rel/.style={-Stealth, thick},
+    every node/.style={font=\scriptsize}
+]
+
+% --- Entities ---
+\node[entity] (categories) at (0,4) {
+    \textbf{categories}\\[2pt]
+    \rule{3.4cm}{0.4pt}\\[2pt]
+    \underline{category\_id} PK\\
+    name\\
+    description\\
+    created\_at
+};
+
+\node[entity] (products) at (0,0) {
+    \textbf{products}\\[2pt]
+    \rule{3.4cm}{0.4pt}\\[2pt]
+    \underline{product\_id} PK\\
+    category\_id FK\\
+    name, sku\\
+    price, stock\\
+    is\_active\\
+    created\_at, updated\_at
+};
+
+\node[entity] (order_items) at (5.5,0) {
+    \textbf{order\_items}\\[2pt]
+    \rule{3.4cm}{0.4pt}\\[2pt]
+    \underline{item\_id} PK\\
+    order\_id FK\\
+    product\_id FK\\
+    quantity\\
+    unit\_price
+};
+
+\node[entity] (orders) at (11,0) {
+    \textbf{orders}\\[2pt]
+    \rule{3.4cm}{0.4pt}\\[2pt]
+    \underline{order\_id} PK\\
+    customer\_id FK\\
+    status\\
+    total\_amount\\
+    city\\
+    created\_at, updated\_at
+};
+
+\node[entity] (customers) at (11,4) {
+    \textbf{customers}\\[2pt]
+    \rule{3.4cm}{0.4pt}\\[2pt]
+    \underline{customer\_id} PK\\
+    email\\
+    first\_name, last\_name\\
+    phone, city, country\\
+    created\_at, updated\_at
+};
+
+\node[entity] (payments) at (11,-4) {
+    \textbf{payments}\\[2pt]
+    \rule{3.4cm}{0.4pt}\\[2pt]
+    \underline{payment\_id} PK\\
+    order\_id FK\\
+    amount, method\\
+    status\\
+    transaction\_ref\\
+    processed\_at
+};
+
+% --- Relationships ---
+\draw[rel] (categories.south) -- (products.north)
+    node[midway, right] {1:N};
+\draw[rel] (products.east) -- (order_items.west)
+    node[midway, above] {1:N};
+\draw[rel] (orders.west) -- (order_items.east)
+    node[midway, above] {1:N};
+\draw[rel] (customers.south) -- (orders.north)
+    node[midway, right] {1:N};
+\draw[rel] (orders.south) -- (payments.north)
+    node[midway, right] {1:1};
+
+\end{tikzpicture}
+\caption{Entity-Relationship diagram of the e-commerce schema (3NF). Arrows point from the ``one'' side to the ``many'' side of each relationship.}
 \end{figure}
 
 \subsection*{Data Generator}
@@ -165,10 +244,7 @@ over 300{,}000 operations during testing.
 
 \begin{figure}[H]
     \centering
-    \fbox{\parbox{0.9\textwidth}{\centering \vspace{4cm}
-    [ INSERT SCREENSHOT: \texttt{docker logs ecommerce\_generator --tail 20}
-    showing the ops counter and rate, e.g. ``ops=350{,}000 rate=78 ops/s'' ]
-    \vspace{4cm}}}
+    \includegraphics[width=0.9\textwidth]{img2_generator_logs.png}
     \caption{Data generator running continuously.}
 \end{figure}
 
@@ -222,11 +298,7 @@ A single Python service performs the entire pipeline:
 
 \begin{figure}[H]
     \centering
-    \fbox{\parbox{0.9\textwidth}{\centering \vspace{5cm}
-    [ INSERT SCREENSHOT: \texttt{docker logs cdc\_worker} showing
-    ``Created new replication slot'', ``Starting initial full load of all
-    tables'', and repeated ``Flushed N rows -> ecommerce.<table>'' lines ]
-    \vspace{5cm}}}
+    \includegraphics[width=0.9\textwidth]{img3_cdc_worker_logs.png}
     \caption{CDC worker performing the initial load and streaming changes.}
 \end{figure}
 
@@ -254,10 +326,7 @@ SELECT product_id, price FROM ecommerce.products FINAL WHERE product_id = 1;
 
 \begin{figure}[H]
     \centering
-    \fbox{\parbox{0.9\textwidth}{\centering \vspace{4cm}
-    [ INSERT SCREENSHOT: terminal showing the UPDATE in Postgres and the
-    matching SELECT ... FINAL result in ClickHouse with the new price ]
-    \vspace{4cm}}}
+    \includegraphics[width=0.9\textwidth]{img4_update_verification.png}
     \caption{An UPDATE issued in PostgreSQL reflected in ClickHouse.}
 \end{figure}
 
@@ -269,10 +338,7 @@ written):
 
 \begin{figure}[H]
     \centering
-    \fbox{\parbox{0.9\textwidth}{\centering \vspace{3cm}
-    [ INSERT SCREENSHOT: \texttt{SELECT COUNT(*) FROM orders;} on both
-    PostgreSQL and ClickHouse showing close row counts ]
-    \vspace{3cm}}}
+    \includegraphics[width=0.9\textwidth]{img5_row_count_comparison.png}
     \caption{Order counts staying in sync between OLTP and OLAP.}
 \end{figure}
 
@@ -317,19 +383,13 @@ time constraints and could be added by running the same
 
 \begin{figure}[H]
     \centering
-    \fbox{\parbox{0.9\textwidth}{\centering \vspace{4cm}
-    [ INSERT SCREENSHOT: PostgreSQL EXPLAIN ANALYZE output, e.g. Q4 showing
-    the Merge Join / Incremental Sort / Seq Scan plan ]
-    \vspace{4cm}}}
+    \includegraphics[width=0.9\textwidth]{img6_postgres_explain.png}
     \caption{PostgreSQL query plan example (Q4 --- product performance).}
 \end{figure}
 
 \begin{figure}[H]
     \centering
-    \fbox{\parbox{0.9\textwidth}{\centering \vspace{4cm}
-    [ INSERT SCREENSHOT: ClickHouse EXPLAIN output showing
-    ReadFromMergeTree + Join (JOIN FillRightFirst) steps ]
-    \vspace{4cm}}}
+    \includegraphics[width=0.9\textwidth]{img7_clickhouse_explain.png}
     \caption{ClickHouse query plan example (same query).}
 \end{figure}
 
@@ -370,6 +430,6 @@ exercised.
 
 \section*{Repository}
 Full source code, Docker Compose configuration, and SQL scripts are
-available at: \url{[ INSERT YOUR GITHUB REPO LINK HERE ]}
+available at: \url{https://github.com/ddgant/cdc-postgres-clickhouse}
 
 \end{document}
