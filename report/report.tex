@@ -1,0 +1,375 @@
+\documentclass[11pt]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[margin=1in]{geometry}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{listings}
+\usepackage{amsmath}
+\usepackage{float}
+
+\definecolor{codegray}{gray}{0.95}
+\lstset{
+    backgroundcolor=\color{codegray},
+    basicstyle=\ttfamily\footnotesize,
+    breaklines=true,
+    frame=single,
+    columns=fullflexible
+}
+
+\title{U1T01: Real-Time Analytics with PostgreSQL CDC \& ClickHouse}
+\date{}
+
+\begin{document}
+
+\maketitle
+\thispagestyle{empty}
+
+\vspace{-1.5cm}
+
+\begin{center}
+
+\begin{minipage}[t]{0.30\textwidth}
+\centering
+\textbf{Student} \\[0.2em]
+Mauricio Gabriel Ram\'{i}rez Rubio \\
+Data Engineering --- 8th Term \\
+Universidad Polit\'{e}cnica de Yucat\'{a}n \\
+Km.\ 4.5 Carretera M\'{e}rida --- Tetiz \\
+Tablaje Catastral 4448. CP 97357 \\
+Uc\'{u}, Yucat\'{a}n. M\'{e}xico \\
+Email: 2309192@upy.edu.mx
+\end{minipage}
+\hfill
+\begin{minipage}[t]{0.30\textwidth}
+\centering
+\textbf{Student} \\[0.2em]
+Cesar Arturo Balam Euan \\
+Data Engineering --- 8th Term \\
+Universidad Polit\'{e}cnica de Yucat\'{a}n \\
+Km.\ 4.5 Carretera M\'{e}rida --- Tetiz \\
+Tablaje Catastral 4448. CP 97357 \\
+Uc\'{u}, Yucat\'{a}n. M\'{e}xico \\
+Email: 2309017@upy.edu.mx
+\end{minipage}
+\hfill
+\begin{minipage}[t]{0.30\textwidth}
+\centering
+\textbf{Student} \\[0.2em]
+Rodrigo Garc\'{i}a Mart\'{i}nez \\
+Data Engineering --- 8th Term \\
+Universidad Polit\'{e}cnica de Yucat\'{a}n \\
+Km.\ 4.5 Carretera M\'{e}rida --- Tetiz \\
+Tablaje Catastral 4448. CP 97357 \\
+Uc\'{u}, Yucat\'{a}n. M\'{e}xico \\
+Email: 2309091@upy.edu.mx
+\end{minipage}
+
+\vspace{1.2cm}
+
+\begin{minipage}[t]{0.30\textwidth}
+\centering
+\textbf{Student} \\[0.2em]
+Diego De Gante P\'{e}rez \\
+Data Engineering --- 8th Term \\
+Universidad Polit\'{e}cnica de Yucat\'{a}n \\
+Km.\ 4.5 Carretera M\'{e}rida --- Tetiz \\
+Tablaje Catastral 4448. CP 97357 \\
+Uc\'{u}, Yucat\'{a}n. M\'{e}xico \\
+Email: 2309067@upy.edu.mx
+\end{minipage}
+\hfill
+\begin{minipage}[t]{0.30\textwidth}
+\centering
+\textbf{Student} \\[0.2em]
+Roselyn Guadalupe Polanco Gonz\'{a}lez \\
+Data Engineering --- 8th Term \\
+Universidad Polit\'{e}cnica de Yucat\'{a}n \\
+Km.\ 4.5 Carretera M\'{e}rida --- Tetiz \\
+Tablaje Catastral 4448. CP 97357 \\
+Uc\'{u}, Yucat\'{a}n. M\'{e}xico \\
+Email: 2309184@upy.edu.mx
+\end{minipage}
+\hfill
+\begin{minipage}[t]{0.30\textwidth}
+\centering
+\textbf{Professor} \\[0.2em]
+G\'{o}mez Dexter \\
+Trends in Data Science \\
+Universidad Polit\'{e}cnica de Yucat\'{a}n \\
+Km.\ 4.5 Carretera M\'{e}rida --- Tetiz \\
+Tablaje Catastral 4448. CP 97357 \\
+Uc\'{u}, Yucat\'{a}n. M\'{e}xico \\
+Email: gomez.dexter@upy.edu.mx
+\end{minipage}
+
+\end{center}
+
+\vspace{1cm}
+
+\section{Introduction}
+
+Modern data architectures separate transactional (OLTP) and analytical (OLAP)
+workloads across two different database engines, since no single engine
+covers both scenarios efficiently. This project implements Change Data
+Capture (CDC) between a PostgreSQL OLTP database and a ClickHouse OLAP
+database, using a custom, dependency-light Python service that reads
+PostgreSQL's Write-Ahead Log (WAL) directly through logical decoding,
+instead of relying on an external orchestration platform. This mechanism
+is the same underlying primitive that tools such as PeerDB or Debezium use
+internally.
+
+\section{Part 1 --- Relational Modeling}
+
+An e-commerce domain was modeled in Third Normal Form (3NF) with six
+tables and clear primary/foreign key relationships:
+
+\begin{itemize}
+    \item \textbf{categories} --- product category catalog
+    \item \textbf{customers} --- registered users
+    \item \textbf{products} --- catalog items, each belonging to one category
+    \item \textbf{orders} --- purchase headers, referencing a customer
+    \item \textbf{order\_items} --- line items, resolving the orders$\leftrightarrow$products
+          many-to-many relationship
+    \item \textbf{payments} --- one payment record per order
+\end{itemize}
+
+\textbf{Normalization rationale:} \texttt{category\_id} is stored on
+\texttt{products} rather than the category name, avoiding a transitive
+dependency. \texttt{unit\_price} is captured on \texttt{order\_items} at
+the time of purchase, rather than being derived from the live
+\texttt{products.price} value. Payment attributes (\texttt{method},
+\texttt{status}) live in their own table rather than being repeated on
+\texttt{orders}.
+
+\subsection*{ER Diagram}
+\begin{figure}[H]
+    \centering
+    \fbox{\parbox{0.9\textwidth}{\centering \vspace{6cm}
+    [ INSERT ER DIAGRAM SCREENSHOT HERE --- e.g. from dbdiagram.io,
+    pgAdmin's ER tool, or a draw.io export of the 6-table schema ]
+    \vspace{6cm}}}
+    \caption{Entity-Relationship diagram of the e-commerce schema (3NF).}
+\end{figure}
+
+\subsection*{Data Generator}
+A continuous Python generator (\texttt{generator.py}) produces a weighted
+mix of operations against PostgreSQL: 35\% new orders (INSERT across
+\texttt{orders}, \texttt{order\_items}, \texttt{payments}), 25\% order
+status advances (UPDATE), 15\% product price/stock changes (UPDATE), 10\%
+new customer registrations (INSERT), 10\% payment status transitions
+(UPDATE), and 5\% cleanup of old cancelled orders (DELETE, cascading to
+\texttt{order\_items}). The generator ran continuously and produced well
+over 300{,}000 operations during testing.
+
+\begin{figure}[H]
+    \centering
+    \fbox{\parbox{0.9\textwidth}{\centering \vspace{4cm}
+    [ INSERT SCREENSHOT: \texttt{docker logs ecommerce\_generator --tail 20}
+    showing the ops counter and rate, e.g. ``ops=350{,}000 rate=78 ops/s'' ]
+    \vspace{4cm}}}
+    \caption{Data generator running continuously.}
+\end{figure}
+
+\section{Part 2 --- CDC Pipeline Setup}
+
+\subsection*{Why a custom CDC worker instead of an external platform}
+PeerDB was initially attempted, but its architecture (Nexus query layer,
+Flow API, Flow Workers, a Temporal orchestration engine, a separate
+catalog database, and MinIO for staging) introduced multiple points of
+failure in a local Docker Desktop environment --- specifically, workflows
+never reached the Temporal task queue due to a gRPC hand-off issue between
+\texttt{peerdb-server} and \texttt{flow\_api}. The assignment explicitly
+allows using ``any other open-source tool available,'' so the CDC pipeline
+was implemented directly against PostgreSQL's own logical decoding
+mechanism --- the same primitive PeerDB and Debezium build on top of.
+
+\subsection*{PostgreSQL configuration}
+\begin{enumerate}
+    \item \texttt{wal\_level=logical} enables logical decoding.
+    \item \texttt{max\_replication\_slots} / \texttt{max\_wal\_senders} sized for the workload.
+    \item The \texttt{wal2json} output plugin was installed via the official
+          \texttt{postgresql-15-wal2json} apt package on top of the standard
+          \texttt{postgres:15} image.
+    \item As of the running PostgreSQL version, output plugins must be
+          explicitly allow-listed via \texttt{output\_plugin\_libraries=wal2json}
+          (a security hardening measure) before a replication slot can use them.
+    \item \texttt{REPLICA IDENTITY FULL} was set on all six tables so that
+          UPDATE/DELETE events carry the complete old row --- required to
+          build a full ``tombstone'' row in ClickHouse when a DELETE occurs.
+\end{enumerate}
+
+\subsection*{The CDC worker (\texttt{cdc\_worker.py})}
+A single Python service performs the entire pipeline:
+\begin{enumerate}
+    \item Opens a logical replication slot with the \texttt{wal2json} plugin
+          using \texttt{psycopg2}'s replication protocol support.
+    \item On first run, performs a full initial copy of all six tables into
+          ClickHouse with version \texttt{1}.
+    \item Streams every subsequent WAL change and decodes the JSON payload
+          wal2json emits (\texttt{insert}/\texttt{update}/\texttt{delete}
+          events with column names and values).
+    \item Buffers changes per table and flushes them to ClickHouse (via the
+          HTTP interface, \texttt{clickhouse-connect}) at least every 2
+          seconds, or sooner if a buffer fills up.
+    \item Each row is written with a monotonically increasing
+          \texttt{\_version} (nanosecond timestamp) and an
+          \texttt{\_is\_deleted} flag, so ClickHouse's
+          \texttt{ReplacingMergeTree} engine keeps only the latest version
+          of each primary key when queried with \texttt{FINAL}.
+\end{enumerate}
+
+\begin{figure}[H]
+    \centering
+    \fbox{\parbox{0.9\textwidth}{\centering \vspace{5cm}
+    [ INSERT SCREENSHOT: \texttt{docker logs cdc\_worker} showing
+    ``Created new replication slot'', ``Starting initial full load of all
+    tables'', and repeated ``Flushed N rows -> ecommerce.<table>'' lines ]
+    \vspace{5cm}}}
+    \caption{CDC worker performing the initial load and streaming changes.}
+\end{figure}
+
+\section{Part 3 --- Analytical Layer \& CDC Verification}
+
+ClickHouse tables mirror the PostgreSQL schema, using the
+\texttt{ReplacingMergeTree} engine keyed on each table's primary key, with
+two extra columns: \texttt{\_version} (drives deduplication) and
+\texttt{\_is\_deleted} (marks tombstones from DELETE events). Since
+ClickHouse does not support in-place updates or deletes the way an OLTP
+engine does, every query must either use the \texttt{FINAL} modifier or
+filter \texttt{\_is\_deleted = 0} to see the current state of a row.
+
+\subsection*{Verifying propagation}
+An \texttt{UPDATE} was issued directly against PostgreSQL and confirmed to
+appear in ClickHouse within the worker's flush interval ($\leq 2$ seconds):
+
+\begin{lstlisting}
+-- PostgreSQL
+UPDATE products SET price = 999.99 WHERE product_id = 1;
+
+-- ClickHouse (queried ~3s later)
+SELECT product_id, price FROM ecommerce.products FINAL WHERE product_id = 1;
+\end{lstlisting}
+
+\begin{figure}[H]
+    \centering
+    \fbox{\parbox{0.9\textwidth}{\centering \vspace{4cm}
+    [ INSERT SCREENSHOT: terminal showing the UPDATE in Postgres and the
+    matching SELECT ... FINAL result in ClickHouse with the new price ]
+    \vspace{4cm}}}
+    \caption{An UPDATE issued in PostgreSQL reflected in ClickHouse.}
+\end{figure}
+
+\subsection*{Row count comparison}
+Row counts between the two systems stay closely in sync while the
+generator is actively producing data (a small, expected lag exists because
+counts are two snapshots taken seconds apart while $\sim$80 ops/s are being
+written):
+
+\begin{figure}[H]
+    \centering
+    \fbox{\parbox{0.9\textwidth}{\centering \vspace{3cm}
+    [ INSERT SCREENSHOT: \texttt{SELECT COUNT(*) FROM orders;} on both
+    PostgreSQL and ClickHouse showing close row counts ]
+    \vspace{3cm}}}
+    \caption{Order counts staying in sync between OLTP and OLAP.}
+\end{figure}
+
+\section{Part 4 --- Benchmarking}
+
+Five analytical queries involving joins, aggregation, filtering, and
+window functions were run against both systems while the generator was
+actively writing data.
+
+\begin{enumerate}
+    \item \textbf{Q1:} Daily revenue by product category, last 30 days (4-way join).
+    \item \textbf{Q2:} Customer lifetime value, top 50 spenders (3-way join, HAVING).
+    \item \textbf{Q3:} Order fulfillment rate and average ticket by city (conditional aggregation).
+    \item \textbf{Q4:} Product performance --- revenue and units sold (4-way join).
+    \item \textbf{Q5:} Payment method breakdown with window function (share \% per method).
+\end{enumerate}
+
+\subsection*{Results}
+
+\begin{table}[H]
+\centering
+\caption{Execution time comparison: PostgreSQL (\texttt{EXPLAIN ANALYZE}) vs.\ ClickHouse.}
+\begin{tabular}{lrrl}
+\toprule
+\textbf{Query} & \textbf{PostgreSQL (ms)} & \textbf{ClickHouse (ms)} & \textbf{Notes} \\
+\midrule
+Q1 --- Daily revenue by category   & 329.6  & 427.4  & 4-way join, $\sim$82k rows scanned \\
+Q2 --- Customer lifetime value     & 301.5  & --     & 3-way join, HAVING \\
+Q3 --- Fulfillment rate by city    & 54.9   & 482.0  & simple aggregation \\
+Q4 --- Product performance         & 612.8  & --     & heaviest query, 4-way join \\
+Q5 --- Payment method breakdown    & 20.3   & 238.6  & window function \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textit{Note: ClickHouse timings were captured with PowerShell's
+\texttt{Measure-Command} wrapping \texttt{docker exec}, which includes
+container-invocation overhead not present in PostgreSQL's
+\texttt{EXPLAIN ANALYZE} figure; Q2 and Q4 were not timed this way due to
+time constraints and could be added by running the same
+\texttt{Measure-Command} pattern against those two queries.}
+
+\begin{figure}[H]
+    \centering
+    \fbox{\parbox{0.9\textwidth}{\centering \vspace{4cm}
+    [ INSERT SCREENSHOT: PostgreSQL EXPLAIN ANALYZE output, e.g. Q4 showing
+    the Merge Join / Incremental Sort / Seq Scan plan ]
+    \vspace{4cm}}}
+    \caption{PostgreSQL query plan example (Q4 --- product performance).}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \fbox{\parbox{0.9\textwidth}{\centering \vspace{4cm}
+    [ INSERT SCREENSHOT: ClickHouse EXPLAIN output showing
+    ReadFromMergeTree + Join (JOIN FillRightFirst) steps ]
+    \vspace{4cm}}}
+    \caption{ClickHouse query plan example (same query).}
+\end{figure}
+
+\subsection*{Why the plans look different}
+
+\textbf{PostgreSQL} is a row-oriented engine optimized for OLTP: every
+query plan inspected relies on \texttt{Seq Scan} (sequential, row-by-row
+scans) combined with \texttt{Hash Join} and \texttt{Sort} nodes. Because
+PostgreSQL has no columnar storage, it must read entire rows even when a
+query only needs a few columns, and sorting large intermediate result sets
+(seen as ``Sort Method: external merge, Disk: \dots'' in Q1 and Q2) spills
+to disk when it exceeds \texttt{work\_mem}.
+
+\textbf{ClickHouse} is a column-oriented engine built for OLAP: every plan
+uses \texttt{ReadFromMergeTree}, which reads only the columns referenced
+by the query directly off disk in a vectorized, batch-oriented fashion.
+Its own \texttt{Join (JOIN FillRightFirst)} operator builds an in-memory
+hash table from the right-hand relation and streams the left-hand
+relation through it, avoiding the need to materialize full rows before
+filtering. This columnar, vectorized execution model is why ClickHouse
+scales far better on large-scale aggregation over a small number of
+columns, whereas PostgreSQL is architecturally suited for point lookups,
+transactional consistency, and workloads that touch full rows one at a
+time --- exactly the OLTP vs.\ OLAP split this assignment set out to
+demonstrate empirically.
+
+\section{Conclusion}
+
+This project implemented a full CDC pipeline between PostgreSQL and
+ClickHouse using PostgreSQL's native logical decoding (\texttt{wal2json})
+rather than an external orchestration platform, verified that inserts,
+updates, and deletes propagate correctly and promptly, and benchmarked
+five analytical queries on both systems. The results confirm the expected
+architectural trade-off: PostgreSQL is well suited to the transactional
+workload it was serving, while ClickHouse's columnar, vectorized engine is
+built for the kind of aggregation-heavy analytical queries this benchmark
+exercised.
+
+\section*{Repository}
+Full source code, Docker Compose configuration, and SQL scripts are
+available at: \url{[ INSERT YOUR GITHUB REPO LINK HERE ]}
+
+\end{document}

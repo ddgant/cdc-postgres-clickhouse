@@ -1,0 +1,113 @@
+name: cdc-ecommerce
+
+services:
+
+  # ═══════════════════════════════════════════════════════════════
+  # 1. PostgreSQL — OLTP Source
+  #    Uses the Debezium postgres image because it bundles the
+  #    wal2json logical-decoding plugin (not present in the
+  #    vanilla postgres image). Still 100% standard PostgreSQL 15.
+  # ═══════════════════════════════════════════════════════════════
+  postgres:
+    build:
+      context: ./postgres
+    container_name: oltp_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ecommerce
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    command: >
+      postgres
+        -c wal_level=logical
+        -c max_replication_slots=10
+        -c max_wal_senders=10
+        -c max_connections=300
+        -c output_plugin_libraries=wal2json
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./postgres/init.sql:/docker-entrypoint-initdb.d/01_init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d ecommerce"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # ═══════════════════════════════════════════════════════════════
+  # 2. ClickHouse — OLAP Target
+  # ═══════════════════════════════════════════════════════════════
+  clickhouse:
+    image: clickhouse/clickhouse-server:24.3-alpine
+    container_name: olap_clickhouse
+    restart: unless-stopped
+    environment:
+      CLICKHOUSE_PASSWORD: clickhouse
+    ports:
+      - "8123:8123"
+      - "9000:9000"
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+      - ./clickhouse/init.sql:/docker-entrypoint-initdb.d/01_init.sql
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    healthcheck:
+      test: ["CMD", "clickhouse-client", "--password", "clickhouse", "--query", "SELECT 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  # ═══════════════════════════════════════════════════════════════
+  # 3. CDC Worker — custom Python service
+  #    Reads PostgreSQL's logical replication stream (wal2json)
+  #    and applies every INSERT/UPDATE/DELETE to ClickHouse.
+  #    This IS the CDC pipeline — no external tool required.
+  # ═══════════════════════════════════════════════════════════════
+  cdc_worker:
+    build:
+      context: ./cdc_worker
+    container_name: cdc_worker
+    restart: unless-stopped
+    environment:
+      PG_HOST: postgres
+      PG_PORT: 5432
+      PG_DB: ecommerce
+      PG_USER: postgres
+      PG_PASSWORD: postgres
+      CH_HOST: clickhouse
+      CH_PORT: 8123
+      CH_USER: default
+      CH_PASSWORD: clickhouse
+      CH_DB: ecommerce
+      SLOT_NAME: cdc_slot
+    depends_on:
+      postgres:
+        condition: service_healthy
+      clickhouse:
+        condition: service_healthy
+
+  # ═══════════════════════════════════════════════════════════════
+  # 4. Data Generator
+  # ═══════════════════════════════════════════════════════════════
+  generator:
+    build:
+      context: ./generator
+    container_name: ecommerce_generator
+    restart: unless-stopped
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: ecommerce
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+  clickhouse_data:
